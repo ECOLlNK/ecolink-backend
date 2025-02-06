@@ -26,6 +26,8 @@ public class ImageController {
     private String uploadUserDir;
     @Value("${spring.ods.upload.dir}")
     private String uploadOdsDir;
+    @Value("${spring.products.upload.dir}")
+    private String uploadProductDir;
 
     @GetMapping
     public ResponseEntity<?> findImage(@RequestParam String type, @RequestParam String name_image) {
@@ -39,6 +41,9 @@ public class ImageController {
                     break;
                 case "ods":
                     full_url = Paths.get(baseDir, uploadOdsDir, name_image).toString();
+                    break;
+                case "product":
+                    full_url = Paths.get(baseDir, uploadProductDir, name_image).toString();
                     break;
             }
 

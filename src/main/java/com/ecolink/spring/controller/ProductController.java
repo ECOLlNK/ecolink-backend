@@ -1,6 +1,7 @@
 package com.ecolink.spring.controller;
 
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.ecolink.spring.dto.ProductDTO;
 import com.ecolink.spring.dto.ProductPostDTO;
@@ -11,9 +12,13 @@ import com.ecolink.spring.entity.Product;
 import com.ecolink.spring.entity.Startup;
 import com.ecolink.spring.entity.UserBase;
 import com.ecolink.spring.exception.ErrorDetails;
+import com.ecolink.spring.exception.ImageNotValidExtension;
+import com.ecolink.spring.exception.ImageSubmitError;
 import com.ecolink.spring.exception.ProductNotFoundException;
 import com.ecolink.spring.service.ProductService;
 import com.ecolink.spring.service.StartupService;
+import com.ecolink.spring.utils.Images;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +28,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,9 +37,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 
 @RestController
 @RequiredArgsConstructor
@@ -42,6 +48,10 @@ public class ProductController {
     private final DTOConverter dtoConverter;
     private final ProductService service;
     private final StartupService startupService;
+    private final Images images;
+
+    @Value("${spring.products.upload.dir}")
+    private String uploadProductDir;
 
     @GetMapping()
     public ResponseEntity<?> getProducts(
@@ -119,18 +129,32 @@ public class ProductController {
     @Transactional
     @PostMapping("/new")
     public ResponseEntity<?> createProduct(@AuthenticationPrincipal UserBase user,
-            @RequestBody ProductPostDTO product) {
+            @RequestPart("product") String productJson, @RequestPart("image") MultipartFile image) {
+                String urlImage = null;
         try {
             if (user instanceof Startup startup) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                ProductPostDTO product = objectMapper.readValue(productJson, ProductPostDTO.class);
                 if (product.getName() == null || product.getName().isEmpty() || product.getPrice() == null
                         || product.getPrice().compareTo(BigDecimal.ZERO) <= 0 || product.getDescription() == null
-                        || product.getDescription().isEmpty()) {
+                        || product.getDescription().isEmpty() || image == null || image.isEmpty()) {
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                             .body(new ErrorDetails(HttpStatus.BAD_REQUEST.value(), "Invalid Fields"));
                 }
 
                 Product newProduct = new Product(startup, product.getName(), product.getDescription(),
                         product.getPrice(), LocalDate.now());
+
+                if (!images.isExtensionImageValid(image)) {
+                    throw new ImageNotValidExtension("The extension is invalid");
+                }
+                urlImage = images.uploadFile(image, uploadProductDir);
+                if (urlImage == null || urlImage.isEmpty()) {
+                    throw new ImageSubmitError("Error to submit the image");
+                }
+                
+                newProduct.setImageUrl(urlImage);
+
                 service.save(newProduct);
                 startup.addProduct(newProduct);
                 startupService.save(startup);
@@ -145,7 +169,6 @@ public class ProductController {
     }
 
     // Editar producto Startup
-    
 
     // Eliminar producto Startup y Admin
 

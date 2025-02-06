@@ -37,7 +37,7 @@ public class Product {
     private String description;
     private BigDecimal price;
     private LocalDate creationDate;
-
+    private String imageUrl;
     
     @ManyToMany
     @JoinTable(name = "product_category", joinColumns = @JoinColumn(name = "id_product"), inverseJoinColumns = @JoinColumn(name = "id_category"))
